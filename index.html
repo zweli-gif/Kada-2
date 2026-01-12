@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/zweli/Downloads/index_19.html -->
+<!-- saved from url=(0046)file:///C:/Users/zweli/Downloads/index_23.html -->
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -752,7 +752,7 @@
                         break;
 
                     case 'TUTORIAL_APP_LIBRARY':
-                        AudioEngine.speak("The App Library has four categories: Communication, Transport, Finance, and Utilities. You will add one app to each category. Tap to continue.");
+                        AudioEngine.speak("The App Library has four preset categories: Communication, Transport, Finance, and Utilities. You can add more categories later. We recommend no more than four apps per category. Tap to continue.");
                         break;
 
                     case 'TUTORIAL_WEB':
@@ -835,7 +835,7 @@
                         break;
 
                     case 'CUSTOM_CATEGORY_CREATED':
-                        AudioEngine.speak(`${this.tempCategoryName} category created. Now let's add an app to it. Long press and say the app name, or swipe right to finish.`, () => {
+                        AudioEngine.speak(`${this.tempCategoryName} category created. Now let's add an app to it. Long press and say the app name, swipe right to finish, or swipe left to cancel.`, () => {
                             this.state = 'CUSTOM_CATEGORY_WAIT_APP';
                             this.updateVisual('CUSTOM_CATEGORY_WAIT_APP');
                         });
@@ -1367,10 +1367,14 @@
                         if (gesture === 'LONG_PRESS') {
                             this.enterState('CUSTOM_CATEGORY_LISTEN_APP');
                         } else if (gesture === 'TAP') {
-                            AudioEngine.speak("Long press and say an app name. Swipe right to finish without adding an app.");
+                            AudioEngine.speak("Long press and say an app name. Swipe right to finish. Swipe left to cancel.");
                         } else if (gesture === 'SWIPE_RIGHT') {
                             AudioEngine.speak("Category saved.", () => {
                                 this.enterState('CUSTOM_CATEGORY_DONE');
+                            });
+                        } else if (gesture === 'SWIPE_LEFT') {
+                            AudioEngine.speak("Cancelled.", () => {
+                                this.enterState('SETUP_COMPLETE');
                             });
                         }
                         break;
@@ -1530,11 +1534,41 @@
                                     this.enterState('APP_IN_CATEGORY');
                                 }
                             } else {
-                                AudioEngine.speak(`${cat.name} is empty. Long press to add an app.`);
+                                // Empty category - go to add app flow
+                                this.enterState('ADD_APP_TO_EMPTY');
                             }
                         } else if (gesture === 'TAP') {
                             this.announceCurrentCategory();
                         }
+                        break;
+
+                    case 'ADD_APP_TO_EMPTY':
+                        const emptyCat = AppData.categories[this.appLibraryCategoryIndex];
+                        AudioEngine.speak(`${emptyCat.name} is empty. Long press and say the app you want to add. Or swipe left to go back.`, () => {
+                            this.state = 'ADD_APP_WAIT';
+                            this.updateVisual('ADD_APP_WAIT');
+                        });
+                        break;
+
+                    case 'ADD_APP_LISTEN':
+                        AudioEngine.speak("Say the name of the app.", () => {
+                            setTimeout(() => {
+                                AudioEngine.playTone('listen');
+                                VoiceRecognition.listen((result) => {
+                                    if (result) {
+                                        this.tempAppName = result;
+                                        AudioEngine.speak(`I heard ${result}. Is that correct? Tap for yes, swipe left for no.`);
+                                        this.state = 'ADD_APP_CONFIRM';
+                                        this.updateVisual('ADD_APP_CONFIRM');
+                                    } else {
+                                        AudioEngine.speak("I didn't catch that. Long press to try again, or swipe left to cancel.", () => {
+                                            this.state = 'ADD_APP_WAIT';
+                                            this.updateVisual('ADD_APP_WAIT');
+                                        });
+                                    }
+                                });
+                            }, 500);
+                        });
                         break;
 
                     case 'APP_IN_CATEGORY':
@@ -1545,6 +1579,43 @@
                             AudioEngine.speak(`Opening ${catInApp.app}. This is a placeholder.`);
                         } else if (gesture === 'TAP') {
                             AudioEngine.speak(catInApp.app);
+                        }
+                        break;
+
+                    // ========== ADD APP TO EMPTY CATEGORY ==========
+                    case 'ADD_APP_WAIT':
+                        if (gesture === 'LONG_PRESS') {
+                            this.enterState('ADD_APP_LISTEN');
+                        } else if (gesture === 'SWIPE_LEFT') {
+                            AudioEngine.speak("Cancelled.", () => {
+                                this.enterState('APP_LIBRARY');
+                            });
+                        } else if (gesture === 'TAP') {
+                            const catEmpty = AppData.categories[this.appLibraryCategoryIndex];
+                            AudioEngine.speak(`${catEmpty.name}. Long press and say the app to add. Swipe left to go back.`);
+                        }
+                        break;
+
+                    case 'ADD_APP_LISTEN':
+                        if (gesture === 'SWIPE_LEFT') {
+                            VoiceRecognition.stop();
+                            AudioEngine.speak("Cancelled.", () => {
+                                this.enterState('ADD_APP_WAIT');
+                            });
+                        }
+                        break;
+
+                    case 'ADD_APP_CONFIRM':
+                        if (gesture === 'TAP') {
+                            const catToAdd = AppData.categories[this.appLibraryCategoryIndex];
+                            catToAdd.app = this.tempAppName;
+                            AudioEngine.speak(`${this.tempAppName} added to ${catToAdd.name}.`, () => {
+                                this.enterState('APP_LIBRARY');
+                            });
+                        } else if (gesture === 'SWIPE_LEFT') {
+                            AudioEngine.speak("Let's try again.", () => {
+                                this.enterState('ADD_APP_LISTEN');
+                            });
                         }
                         break;
 
